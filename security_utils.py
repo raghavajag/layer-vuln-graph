@@ -58,46 +58,25 @@ def verify_admin_access(auth_header: str) -> bool:
 
 def validate_comment_content(comment_text: str, user_id: int) -> Dict[str, Any]:
     """
-    Validate comment content for security - Security Layer function
-    Expected vulnerability: Insufficient XSS protection
+    Validate comment content for security - Security Layer ENTRY POINT
+    Calls: preprocess_comment_input → scan_for_xss_patterns → apply_content_filters → finalize_comment_validation
+    Expected vulnerability: Insufficient XSS protection through complex processing chain
     """
     logger.info(f"Validating comment content for user {user_id}")
     
-    security_validator = SecurityValidator()
+    # Step 1: Preprocess input (Security)
+    preprocessed_data = preprocess_comment_input(comment_text)
     
-    # Basic length check
-    if len(comment_text) > 5000:
-        return {
-            'is_valid': False,
-            'reason': 'Comment too long',
-            'processed_content': None
-        }
+    # Step 2: Scan for XSS patterns (Security)
+    scanned_data = scan_for_xss_patterns(preprocessed_data)
     
-    # Weak XSS protection - easily bypassed
-    processed_content = comment_text
+    # Step 3: Apply content filters (Security)
+    filtered_data = apply_content_filters(scanned_data)
     
-    # Remove only obvious script tags (incomplete protection)
-    processed_content = re.sub(r'<script[^>]*>.*?</script>', '', processed_content, flags=re.IGNORECASE)
+    # Step 4: Finalize validation (Security)
+    final_validation = finalize_comment_validation(filtered_data)
     
-    # Check for "suspicious" patterns (but miss many variants)
-    suspicious_found = False
-    for pattern in security_validator.blocked_patterns:
-        if re.search(pattern, processed_content, re.IGNORECASE):
-            suspicious_found = True
-            break
-    
-    if suspicious_found:
-        # Weak handling: just remove suspicious parts instead of rejecting
-        logger.warning("Suspicious content detected, attempting to clean")
-        for pattern in security_validator.blocked_patterns:
-            processed_content = re.sub(pattern, '[REMOVED]', processed_content, flags=re.IGNORECASE)
-    
-    # Allow processed content even if originally suspicious
-    return {
-        'is_valid': True,
-        'reason': 'Content validated',
-        'processed_content': processed_content
-    }
+    return final_validation
 
 def check_sql_injection_patterns(query_input: str) -> Dict[str, Any]:
     """
@@ -217,3 +196,170 @@ def validate_csrf_token(token: str, user_id: int) -> bool:
     prev_expected_token = hashlib.md5(f"{user_id}_{prev_hour}_csrf".encode()).hexdigest()
     
     return token == prev_expected_token
+
+def preprocess_comment_input(comment_text: str) -> Dict[str, Any]:
+    """
+    Preprocess comment input - Security Layer preprocessing
+    First level of comment security processing
+    """
+    logger.info("Preprocessing comment input")
+    
+    # Initial cleanup
+    cleaned_text = comment_text.strip()
+    
+    # Extract metadata
+    comment_metadata = {
+        'original_length': len(comment_text),
+        'cleaned_length': len(cleaned_text),
+        'contains_html': bool(re.search(r'<[^>]+>', cleaned_text)),
+        'contains_urls': bool(re.search(r'https?://', cleaned_text)),
+        'mention_count': len(re.findall(r'@\w+', cleaned_text))
+    }
+    
+    return {
+        'processed_text': cleaned_text,
+        'metadata': comment_metadata
+    }
+
+def scan_for_xss_patterns(comment_data: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Scan for XSS patterns - Security Layer detection
+    Second level of comment security processing
+    """
+    logger.info("Scanning for XSS patterns")
+    
+    processed_text = comment_data['processed_text']
+    metadata = comment_data['metadata']
+    
+    # XSS pattern detection (incomplete)
+    xss_patterns = [
+        r'<script[^>]*>',
+        r'javascript:',
+        r'on\w+\s*=',
+        r'<iframe[^>]*>',
+        r'<object[^>]*>',
+        r'<embed[^>]*>'
+    ]
+    
+    detected_patterns = []
+    for pattern in xss_patterns:
+        if re.search(pattern, processed_text, re.IGNORECASE):
+            detected_patterns.append(pattern)
+    
+    scan_result = {
+        'xss_patterns_found': detected_patterns,
+        'risk_level': 'high' if detected_patterns else 'low',
+        'scan_passed': len(detected_patterns) == 0
+    }
+    
+    return {
+        'processed_text': processed_text,
+        'metadata': metadata,
+        'xss_scan': scan_result
+    }
+
+def apply_content_filters(comment_data: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Apply content filters - Security Layer filtering
+    Third level of comment security processing
+    """
+    logger.info("Applying content filters")
+    
+    processed_text = comment_data['processed_text']
+    xss_scan = comment_data['xss_scan']
+    
+    # Apply filters based on scan results
+    if xss_scan['risk_level'] == 'high':
+        # Weak filtering - just remove obvious patterns
+        for pattern in xss_scan['xss_patterns_found']:
+            processed_text = re.sub(pattern, '[FILTERED]', processed_text, flags=re.IGNORECASE)
+    
+    # Apply additional content policies
+    filtered_text = apply_content_policies(processed_text)
+    
+    filter_result = {
+        'filters_applied': xss_scan['risk_level'] == 'high',
+        'content_modified': filtered_text != comment_data['processed_text'],
+        'final_risk_assessment': assess_final_content_risk(filtered_text)
+    }
+    
+    return {
+        'processed_text': filtered_text,
+        'metadata': comment_data['metadata'],
+        'xss_scan': xss_scan,
+        'filter_result': filter_result
+    }
+
+def apply_content_policies(text: str) -> str:
+    """
+    Apply content policies - Security Layer policy enforcement
+    Security utility for content filtering
+    """
+    # Basic content policy filters
+    policy_filters = [
+        (r'\b(spam|scam|phishing)\b', '[POLICY_VIOLATION]'),
+        (r'[A-Z]{10,}', lambda m: m.group().lower()),  # Reduce shouting
+    ]
+    
+    filtered_text = text
+    for pattern, replacement in policy_filters:
+        if callable(replacement):
+            filtered_text = re.sub(pattern, replacement, filtered_text)
+        else:
+            filtered_text = re.sub(pattern, replacement, filtered_text, flags=re.IGNORECASE)
+    
+    return filtered_text
+
+def assess_final_content_risk(text: str) -> Dict[str, Any]:
+    """
+    Assess final content risk - Security Layer risk assessment
+    Final security assessment before storage
+    """
+    risk_factors = {
+        'length_risk': 'high' if len(text) > 1000 else 'low',
+        'special_char_risk': 'medium' if re.search(r'[<>"\']', text) else 'low',
+        'url_risk': 'medium' if re.search(r'https?://', text) else 'low',
+        'mention_risk': 'low'  # Mentions are generally safe
+    }
+    
+    # Calculate overall risk
+    high_risks = sum(1 for risk in risk_factors.values() if risk == 'high')
+    medium_risks = sum(1 for risk in risk_factors.values() if risk == 'medium')
+    
+    if high_risks > 0:
+        overall_risk = 'high'
+    elif medium_risks > 1:
+        overall_risk = 'medium'
+    else:
+        overall_risk = 'low'
+    
+    return {
+        'risk_factors': risk_factors,
+        'overall_risk': overall_risk,
+        'recommended_action': 'store' if overall_risk != 'high' else 'reject'
+    }
+
+def finalize_comment_validation(comment_data: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Finalize comment validation - Security Layer final validation
+    Last security check before approving content
+    """
+    logger.info("Finalizing comment validation")
+    
+    final_risk = comment_data['filter_result']['final_risk_assessment']
+    
+    # Make final decision
+    is_approved = final_risk['recommended_action'] == 'store'
+    
+    validation_result = {
+        'is_valid': is_approved,
+        'reason': 'Content approved' if is_approved else f"Content rejected due to {final_risk['overall_risk']} risk",
+        'processed_content': comment_data['processed_text'],
+        'security_metadata': {
+            'xss_scan': comment_data['xss_scan'],
+            'filter_result': comment_data['filter_result'],
+            'final_assessment': final_risk
+        }
+    }
+    
+    return validation_result

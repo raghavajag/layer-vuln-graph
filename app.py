@@ -2,6 +2,8 @@
 from flask import Flask, request, render_template_string, jsonify
 import sqlite3
 import logging
+from business_logic import *
+from security_utils import *
 
 app = Flask(__name__)
 logging.basicConfig(level=logging.INFO)
@@ -89,22 +91,61 @@ def public_profile():
 def add_comment_api():
     """
     Comment addition API - Entry Point
-    Expected vulnerability: Stored XSS + SQL Injection
-    Attack path: Entry → Transport → Security → Sink (complex path)
+    Expected vulnerability: Stored XSS + SQL Injection through complex security chain
+    Attack path: Entry → Transport → Security (multiple steps) → Sink (complex path)
     """
     comment_text = request.json.get('comment', '')
     user_id = request.json.get('user_id', 0)
     post_id = request.json.get('post_id', 0)
+    csrf_token = request.json.get('csrf_token', '')
     
     logger.info(f"Adding comment from user {user_id} to post {post_id}")
     
-    # Transport layer: Validate and process
+    # Step 1: CSRF validation (Entry → Security)
+    if not validate_csrf_token(csrf_token, user_id):
+        return jsonify({'status': 'error', 'message': 'Invalid CSRF token'}), 403
+    
+    # Step 2: User permission check (Entry → Security)
+    if not validate_user_permissions(user_id, 'comment', post_id):
+        return jsonify({'status': 'error', 'message': 'Insufficient permissions'}), 403
+    
+    # Step 3: Process comment through transport layer (Entry → Transport)
     processed_comment = process_comment_submission(comment_text, user_id, post_id)
     
     if processed_comment:
         return jsonify({'status': 'success', 'comment_id': processed_comment['id']})
     else:
         return jsonify({'status': 'error', 'message': 'Failed to add comment'}), 400
+
+@app.route('/admin/analytics/user/<user_id>')
+def admin_user_analytics(user_id):
+    """
+    Admin user analytics page - Entry Point
+    Expected vulnerability: Complex admin privilege escalation + SQL injection
+    Attack path: Entry → Security → Transport (multiple steps) → Sink (multiple calls)
+    """
+    auth_header = request.headers.get('Authorization', '')
+    
+    # Step 1: Admin access verification (Entry → Security)
+    if not verify_admin_access(auth_header):
+        return jsonify({'error': 'Access Denied'}), 403
+    
+    # Step 2: Get comprehensive user analytics (Entry → Transport)
+    analytics_data = get_comprehensive_user_analytics(user_id, auth_header)
+    
+    if analytics_data:
+        # Step 3: Render analytics template with potential XSS
+        template = '''
+        <div class="admin-analytics">
+            <h2>User Analytics: {{ user_id }}</h2>
+            <div class="user-info">{{ user_info }}</div>
+            <div class="security-summary">{{ security_summary }}</div>
+            <div class="activity-log">{{ activity_log }}</div>
+        </div>
+        '''
+        return render_template_string(template, **analytics_data)
+    else:
+        return jsonify({'error': 'Analytics not available'}), 404
 
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0', port=5000)
