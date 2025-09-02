@@ -2,7 +2,10 @@
 # This file contains various API endpoints that serve as entry points for attacks
 # Demonstrates: Input validation, route handling, parameter processing
 
-from flask import Flask, request, jsonify
+import os
+import subprocess
+import sqlite3
+from flask import Flask, request, jsonify, render_template_string
 from .business_layer import UserService, ProductService, SearchService
 from .security_layer import InputValidator, AuthenticationManager
 from .data_layer import DatabaseManager
@@ -125,6 +128,87 @@ class APIController:
         
         return jsonify(report_data)
 
+    # ============ NEW CRITICAL VULNERABILITIES ============
+    # Based on the provided vulnerable codebase patterns
+
+    def public_search_critical(self):
+        """CRITICAL: Direct SQL injection - immediately exploitable"""
+        search_term = request.args.get('q', '')
+        
+        # VULNERABLE: Direct string concatenation in SQL query
+        # This will create a detectable SQL injection vulnerability
+        return self.user_service.execute_raw_search_query(search_term)
+
+    def direct_command_execution(self):
+        """CRITICAL: Command injection - no protections"""
+        user_cmd = request.args.get('cmd', '')
+        
+        # VULNERABLE: Direct command execution through subprocess
+        # Complex call chain: API -> Business -> System execution
+        return self.user_service.execute_system_command(user_cmd)
+
+    def file_upload_and_execute(self):
+        """CRITICAL: Path traversal + RCE vulnerability"""
+        filename = request.args.get('filename', '')
+        content = request.args.get('content', '')
+        
+        # VULNERABLE: Path traversal through business layer
+        return self.user_service.handle_file_operations(filename, content)
+
+    def template_injection_endpoint(self):
+        """CRITICAL: Server-side template injection"""
+        template_data = request.args.get('template', '')
+        user_data = request.args.get('data', '')
+        
+        # VULNERABLE: Template injection through business layer processing
+        return self.user_service.render_dynamic_template(template_data, user_data)
+
+    def database_debug_endpoint(self):
+        """HIGH: SQL injection in database operations"""
+        table_name = request.args.get('table', '')
+        debug_query = request.args.get('query', '')
+        
+        # VULNERABLE: Multiple injection points
+        return self.user_service.debug_database_operations(table_name, debug_query)
+
+    def file_read_endpoint(self):
+        """HIGH: Path traversal in file operations"""
+        filepath = request.args.get('file', '')
+        encoding = request.args.get('encoding', '')
+        
+        # VULNERABLE: File path traversal through multiple layers
+        return self.user_service.read_file_with_encoding(filepath, encoding)
+
+    def log_injection_endpoint(self):
+        """MEDIUM: Log injection and potential code execution"""
+        log_message = request.args.get('message', '')
+        log_level = request.args.get('level', 'info')
+        
+        # VULNERABLE: Log injection through business layer
+        return self.user_service.log_user_activity(log_message, log_level)
+
+    def subprocess_endpoint(self):
+        """MEDIUM: Subprocess injection with shell=True"""
+        script_name = request.args.get('script', '')
+        args = request.args.get('args', '')
+        
+        # VULNERABLE: Shell command injection
+        return self.user_service.execute_script_with_args(script_name, args)
+
+    def internal_file_read(self):
+        """HIGH: Path traversal - internal network only"""
+        filename = request.args.get('file', '')
+        
+        # VULNERABLE: Path traversal through business processing
+        return self.user_service.read_internal_file(filename)
+
+    def custom_sql_endpoint(self):
+        """HIGH: Custom SQL with insufficient sanitization"""
+        table_filter = request.args.get('filter', '')
+        
+        # VULNERABLE: Custom sanitization that can be bypassed
+        return self.user_service.custom_sanitized_query(table_filter)
+
     def admin_user_management_endpoint(self):
         """Admin user management - COMPLEX CALL CHAIN"""
         auth_token = request.headers.get('Authorization', '')
@@ -140,7 +224,7 @@ class APIController:
 # Initialize controller
 api_controller = APIController()
 
-# Register routes
+# Register routes - including new vulnerable endpoints
 app.add_url_rule('/api/users/search', 'search_users', api_controller.search_users_endpoint, methods=['GET'])
 app.add_url_rule('/api/users/details', 'get_user_details', api_controller.get_user_details_endpoint, methods=['GET'])
 app.add_url_rule('/api/products/search', 'search_products', api_controller.search_products_endpoint, methods=['GET'])
@@ -149,3 +233,15 @@ app.add_url_rule('/profile/safe', 'safe_profile', api_controller.safe_profile_en
 app.add_url_rule('/admin/users/manage', 'admin_user_management', api_controller.admin_user_management_endpoint, methods=['POST'])
 app.add_url_rule('/api/users/complex_search', 'complex_user_search', api_controller.complex_user_search_endpoint, methods=['GET'])
 app.add_url_rule('/api/reports/advanced', 'advanced_report', api_controller.advanced_report_endpoint, methods=['GET'])
+
+# New vulnerable routes that Semgrep can detect
+app.add_url_rule('/public_search', 'public_search_critical', api_controller.public_search_critical, methods=['GET'])
+app.add_url_rule('/execute', 'direct_command', api_controller.direct_command_execution, methods=['GET'])
+app.add_url_rule('/upload', 'file_upload', api_controller.file_upload_and_execute, methods=['GET'])
+app.add_url_rule('/template', 'template_injection', api_controller.template_injection_endpoint, methods=['GET'])
+app.add_url_rule('/debug', 'database_debug', api_controller.database_debug_endpoint, methods=['GET'])
+app.add_url_rule('/read', 'file_read', api_controller.file_read_endpoint, methods=['GET'])
+app.add_url_rule('/log', 'log_injection', api_controller.log_injection_endpoint, methods=['GET'])
+app.add_url_rule('/script', 'subprocess', api_controller.subprocess_endpoint, methods=['GET'])
+app.add_url_rule('/internal', 'internal_file', api_controller.internal_file_read, methods=['GET'])
+app.add_url_rule('/custom_sql', 'custom_sql', api_controller.custom_sql_endpoint, methods=['GET'])
