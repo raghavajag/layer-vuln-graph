@@ -113,6 +113,157 @@ class UserService:
             return self.user_repo.demote_user_from_admin(user_id)
         else:
             return {"error": "Unknown action"}
+    
+    def process_user_profile(self, username, profile_type):
+        """Process user profile - COMPLEX XSS CALL CHAIN"""
+        # Business logic processing that creates vulnerability path
+        logger.info(f"Processing profile for user: {username}, type: {profile_type}")
+        
+        # Call security layer for "validation" (ineffective)
+        if not self.validator.is_safe_search_term(username):
+            # Weak control: logs but continues processing
+            logger.warning(f"Suspicious username detected: {username}")
+        
+        # Process through multiple business logic steps
+        processed_name = self._enhance_display_name(username, profile_type)
+        
+        # Call data layer to get additional profile data
+        profile_data = self.user_repo.get_profile_enhancements(processed_name)
+        
+        return {
+            "display_name": processed_name,
+            "profile_data": profile_data
+        }
+    
+    def _enhance_display_name(self, username, profile_type):
+        """Enhance display name based on profile type - VULNERABLE PROCESSING"""
+        if profile_type == "enhanced":
+            # Complex string manipulation that preserves XSS payload
+            enhanced_name = f"{username} <span class='premium'>⭐</span>"
+            return enhanced_name
+        elif profile_type == "admin":
+            # Admin enhancement with potential XSS
+            return f"Administrator: {username}"
+        else:
+            return username
+    
+    def complex_user_search(self, query, filter_type, sort_order, limit):
+        """Complex user search - MULTI-LAYER SQL INJECTION PATH"""
+        logger.info(f"Complex search: query={query}, filter={filter_type}, sort={sort_order}, limit={limit}")
+        
+        # Step 1: Business logic preprocessing
+        processed_query = self._preprocess_complex_query(query, filter_type)
+        
+        # Step 2: Security validation (ineffective)
+        if self.sql_detector.detect_sql_injection_patterns(processed_query):
+            logger.warning(f"SQL injection detected but continuing: {processed_query}")
+            # Logs warning but continues processing - VULNERABLE CONTROL
+        
+        # Step 3: Sort order processing (vulnerable)
+        validated_sort = self._process_sort_order(sort_order)
+        
+        # Step 4: Limit processing (vulnerable)
+        processed_limit = self._process_limit_parameter(limit)
+        
+        # Step 5: Call data layer with processed parameters
+        return self.user_repo.complex_search_with_dynamic_query(
+            processed_query, filter_type, validated_sort, processed_limit
+        )
+    
+    def _preprocess_complex_query(self, query, filter_type):
+        """Preprocess complex query - VULNERABLE LOGIC"""
+        # Business logic that modifies query in dangerous ways
+        if filter_type == "advanced":
+            # Add advanced search operators that can be exploited
+            if not query.startswith("(") and not query.endswith(")"):
+                query = f"({query}) OR (status = 'active')"
+        elif filter_type == "fuzzy":
+            # Fuzzy search preprocessing that creates injection opportunities
+            query = query.replace(" ", "% OR name LIKE %")
+            query = f"%{query}%"
+        
+        return query
+    
+    def _process_sort_order(self, sort_order):
+        """Process sort order - VULNERABLE TO INJECTION"""
+        # Validate sort order (weak validation)
+        allowed_fields = ["name", "email", "created_date", "id"]
+        
+        if sort_order.lower() in ["asc", "desc"]:
+            return f"name {sort_order.upper()}"
+        elif any(field in sort_order.lower() for field in allowed_fields):
+            # VULNERABLE: Direct string usage without proper validation
+            return sort_order
+        else:
+            return "name ASC"
+    
+    def _process_limit_parameter(self, limit):
+        """Process limit parameter - VULNERABLE VALIDATION"""
+        try:
+            limit_int = int(limit)
+            if limit_int > 100:
+                limit_int = 100
+            return str(limit_int)
+        except ValueError:
+            # VULNERABLE: Returns original string if not a number
+            logger.warning(f"Invalid limit parameter: {limit}")
+            return limit  # This could contain SQL injection
+    
+    def generate_advanced_report(self, report_type, date_range, user_filter, group_by, custom_filter):
+        """Generate advanced report - COMPLEX SQL INJECTION THROUGH MULTIPLE PATHS"""
+        logger.info(f"Generating report: type={report_type}, range={date_range}, filter={user_filter}")
+        
+        # Business logic preprocessing
+        processed_filter = self._process_report_filter(user_filter, custom_filter)
+        date_condition = self._build_date_condition(date_range)
+        group_clause = self._build_group_by_clause(group_by)
+        
+        # Multiple validation layers (all bypassable)
+        if custom_filter and self.sql_detector.detect_sql_injection_patterns(custom_filter):
+            logger.warning("Suspicious custom filter detected")
+            # But still processes it - INEFFECTIVE CONTROL
+        
+        # Call data layer with complex parameters
+        return self.user_repo.generate_dynamic_report(
+            report_type=report_type,
+            date_condition=date_condition,
+            user_filter=processed_filter,
+            group_clause=group_clause,
+            custom_filter=custom_filter
+        )
+    
+    def _process_report_filter(self, user_filter, custom_filter):
+        """Process report filter - VULNERABLE LOGIC"""
+        if not user_filter:
+            return "1=1"  # Default condition
+        
+        # Business logic that creates SQL injection opportunity
+        if custom_filter:
+            # Combine user filter with custom filter - DANGEROUS
+            combined_filter = f"({user_filter}) AND ({custom_filter})"
+            return combined_filter
+        else:
+            # Simple filter processing
+            return f"user_id = {user_filter}"  # VULNERABLE: No parameterization
+    
+    def _build_date_condition(self, date_range):
+        """Build date condition - VULNERABLE TO INJECTION"""
+        try:
+            days = int(date_range)
+            return f"created_date >= DATE('now', '-{days} days')"
+        except ValueError:
+            # VULNERABLE: Uses raw input if not a number
+            return f"created_date >= {date_range}"
+    
+    def _build_group_by_clause(self, group_by):
+        """Build GROUP BY clause - VULNERABLE"""
+        allowed_groups = ["date", "user", "type", "status"]
+        
+        if group_by in allowed_groups:
+            return f"GROUP BY {group_by}"
+        else:
+            # VULNERABLE: Uses input directly
+            return f"GROUP BY {group_by}"
 
 class ProductService:
     """Product management business logic"""

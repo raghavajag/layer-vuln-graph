@@ -60,11 +60,16 @@ class APIController:
         return self.product_service.search_products(sanitized_term)
 
     def public_profile_endpoint(self):
-        """Public profile display - XSS VULNERABLE"""
+        """Public profile display - COMPLEX XSS VULNERABLE WITH CALL CHAIN"""
         username = request.args.get('username', '')
-
-        # Direct output without encoding - VULNERABLE
-        return f"<h1>Welcome {username}</h1>"
+        profile_type = request.args.get('type', 'basic')
+        
+        # Complex call chain: API -> Business -> Security -> Sink
+        # This creates a multi-layer vulnerability path for testing
+        processed_profile = self.user_service.process_user_profile(username, profile_type)
+        
+        # Direct output without encoding - VULNERABLE SINK
+        return f"<h1>Welcome {processed_profile['display_name']}</h1>"
 
     def safe_profile_endpoint(self):
         """Safe profile with encoding - SECURE"""
@@ -74,6 +79,51 @@ class APIController:
         from html import escape
         safe_username = escape(username)
         return f"<h1>Welcome {safe_username}</h1>"
+        
+    def complex_user_search_endpoint(self):
+        """Complex user search with multiple vulnerable call paths - SQL INJECTION"""
+        # Entry point for complex SQL injection attack path
+        search_query = request.args.get('query', '')
+        filter_type = request.args.get('filter', 'name')
+        sort_order = request.args.get('sort', 'asc')
+        limit = request.args.get('limit', '10')
+        
+        # Complex call chain: API -> Business -> Multiple Security Checks -> Data Layer
+        search_results = self.user_service.complex_user_search(
+            query=search_query,
+            filter_type=filter_type, 
+            sort_order=sort_order,
+            limit=limit
+        )
+        
+        return jsonify(search_results)
+    
+    def advanced_report_endpoint(self):
+        """Advanced reporting endpoint - COMPLEX SQL INJECTION THROUGH MULTIPLE LAYERS"""
+        # Multiple input parameters creating complex attack surface
+        report_type = request.args.get('report_type', 'user_activity')
+        date_range = request.args.get('date_range', '30')
+        user_filter = request.args.get('user_filter', '')
+        group_by = request.args.get('group_by', 'date')
+        custom_sql = request.args.get('custom_filter', '')  # DANGEROUS PARAMETER
+        
+        # Authentication check (bypassable through parameter manipulation)
+        auth_token = request.headers.get('Authorization', '')
+        if not self.auth_manager.validate_token(auth_token):
+            # Weak security: allows bypass with specific parameters
+            if not request.args.get('legacy_mode') == 'true':
+                return jsonify({"error": "Unauthorized"}), 401
+        
+        # Complex vulnerable call chain
+        report_data = self.user_service.generate_advanced_report(
+            report_type=report_type,
+            date_range=date_range,
+            user_filter=user_filter,
+            group_by=group_by,
+            custom_filter=custom_sql
+        )
+        
+        return jsonify(report_data)
 
     def admin_user_management_endpoint(self):
         """Admin user management - COMPLEX CALL CHAIN"""
@@ -97,3 +147,5 @@ app.add_url_rule('/api/products/search', 'search_products', api_controller.searc
 app.add_url_rule('/profile', 'public_profile', api_controller.public_profile_endpoint, methods=['GET'])
 app.add_url_rule('/profile/safe', 'safe_profile', api_controller.safe_profile_endpoint, methods=['GET'])
 app.add_url_rule('/admin/users/manage', 'admin_user_management', api_controller.admin_user_management_endpoint, methods=['POST'])
+app.add_url_rule('/api/users/complex_search', 'complex_user_search', api_controller.complex_user_search_endpoint, methods=['GET'])
+app.add_url_rule('/api/reports/advanced', 'advanced_report', api_controller.advanced_report_endpoint, methods=['GET'])
