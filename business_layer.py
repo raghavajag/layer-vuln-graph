@@ -22,6 +22,10 @@ class UserService:
         self.db_manager = DatabaseManager()
         self.user_repo = UserRepository()
         self.auth_manager = AuthenticationManager()
+    def deadcode1():
+        pass
+    def deadcode2():
+        pass
 
     def search_users(self, search_query, user_id):
         """Complex user search with multiple paths"""
