@@ -149,3 +149,204 @@ class BackgroundSyncService:
             return render_template_string(dangerous_template)
         
         return "safe_response"
+
+
+# ==================== COMMAND INJECTION VULNERABILITIES ====================
+
+class SystemCommandService:
+    """Service for system operations with command injection vulnerabilities"""
+    
+    def __init__(self):
+        self.logger = CentralizedLogger()
+    
+    def ping_host(self, host):
+        """CRITICAL: Command injection - no protections"""
+        # Direct command execution with user input
+        result = subprocess.check_output(f"ping -c 1 {host}", shell=True)
+        return result.decode()
+    
+    def execute_diagnostic(self, command):
+        """CRITICAL: Direct command injection - immediately exploitable"""
+        # No validation or sanitization
+        result = subprocess.run(command, shell=True, capture_output=True, text=True)
+        return {
+            "command": command,
+            "output": result.stdout,
+            "error": result.stderr,
+            "return_code": result.returncode
+        }
+    
+    def debug_network_command(self, cmd):
+        """GOOD TO FIX: Command injection with weak validation"""
+        # Weak attempt at validation
+        if 'rm' not in cmd and 'del' not in cmd:
+            result = subprocess.run(f"echo {cmd}", shell=True, capture_output=True)
+            return result.stdout
+        return "Command blocked"
+    
+    def run_batch_script(self, script_name, params):
+        """CRITICAL: Command injection via script parameters"""
+        # User-controlled parameters passed to command
+        command = f"./scripts/{script_name}.sh {params}"
+        result = os.system(command)
+        return {"script": script_name, "exit_code": result}
+    
+    def admin_execute_command(self, command):
+        """PROTECTED: Command execution but protected by decorator (see routes)"""
+        # This function is protected by @staff_member_required decorator
+        result = subprocess.run(command, shell=True, capture_output=True, text=True)
+        return {"output": result.stdout, "error": result.stderr}
+
+
+# ==================== FILE OPERATION VULNERABILITIES ====================
+
+class FileOperationsService:
+    """Service for file operations with path traversal vulnerabilities"""
+    
+    def __init__(self):
+        self.logger = CentralizedLogger()
+        self.base_upload_path = "/uploads/"
+    
+    def read_user_file(self, filename):
+        """GOOD TO FIX: Path traversal with weak validation"""
+        # Attempts to prevent directory traversal but still vulnerable
+        if '../' in filename or '/' in filename:
+            return None
+        
+        # Still vulnerable to other traversal techniques
+        try:
+            with open(f"user_files/{filename}", 'r') as f:
+                return f.read()
+        except FileNotFoundError:
+            return None
+    
+    def upload_and_save_file(self, filename, content):
+        """CRITICAL: Path traversal + potential RCE vulnerability"""
+        # No path validation
+        file_path = f"{self.base_upload_path}{filename}"
+        
+        with open(file_path, 'w') as f:
+            f.write(content)
+        
+        return f"File saved to {file_path}"
+    
+    def read_internal_file(self, filepath):
+        """GOOD TO FIX: Path traversal - lower impact (internal network)"""
+        # Internal file access with minimal validation
+        file_path = f"/internal_docs/{filepath}"
+        
+        try:
+            with open(file_path, 'r') as f:
+                content = f.read()
+            return {"content": content}
+        except Exception as e:
+            return {"error": str(e)}
+    
+    def get_file_by_path(self, filepath):
+        """CRITICAL: Direct path traversal vulnerability"""
+        # No validation at all
+        with open(filepath, 'r') as f:
+            return f.read()
+    
+    def safe_file_read(self, filename):
+        """PROTECTED: Properly validated file access"""
+        # Proper validation
+        if not filename or '..' in filename or filename.startswith('/'):
+            return {"error": "Invalid filename"}, 400
+        
+        safe_filename = os.path.basename(filename)
+        allowed_extensions = ['.txt', '.pdf', '.jpg']
+        
+        if not any(safe_filename.endswith(ext) for ext in allowed_extensions):
+            return {"error": "File type not allowed"}, 400
+        
+        file_path = os.path.join('/safe/uploads/', safe_filename)
+        
+        try:
+            with open(file_path, 'r') as f:
+                return f.read()
+        except FileNotFoundError:
+            return {"error": "File not found"}, 404
+
+
+# ==================== AUTHENTICATION AND CRYPTO VULNERABILITIES ====================
+
+class AuthenticationService:
+    """Service handling authentication with weak cryptography"""
+    
+    def __init__(self):
+        self.logger = CentralizedLogger()
+    
+    def hash_password(self, password):
+        """GOOD TO FIX: Weak password hashing"""
+        import base64
+        # Using base64 instead of proper password hashing
+        return base64.b64encode(password.encode()).decode()
+    
+    def verify_password(self, password, stored_hash):
+        """GOOD TO FIX: Weak password verification"""
+        import base64
+        hashed = base64.b64encode(password.encode()).decode()
+        return hashed == stored_hash
+    
+    def validate_email(self, email):
+        """GOOD TO FIX: Weak regex for input validation"""
+        import re
+        # Overly simplistic email validation
+        pattern = r'.+@.+\..+'
+        return re.match(pattern, email) is not None
+    
+    def generate_session_token(self, user_id):
+        """GOOD TO FIX: Predictable token generation"""
+        import hashlib
+        # Weak token generation using predictable values
+        token = hashlib.md5(f"{user_id}{os.getpid()}".encode()).hexdigest()
+        return token
+    
+    def store_credentials(self, username, password):
+        """CRITICAL: Hardcoded credentials"""
+        # Hardcoded admin credentials
+        admin_user = "admin"
+        admin_pass = "supersecretpassword123"
+        
+        if username == admin_user:
+            return {"error": "Username reserved"}
+        
+        return {"success": True}
+
+
+# ==================== DEAD CODE WITH VULNERABILITIES ====================
+
+def legacy_load_user_preferences(data):
+    """DEAD CODE: This function is not called anywhere in the codebase"""
+    import pickle
+    import base64
+    # Unsafe deserialization vulnerability
+    return pickle.loads(base64.b64decode(data))
+
+def deprecated_get_file(filepath):
+    """DEAD CODE: This function is not called anywhere"""
+    # Direct path traversal vulnerability
+    with open(filepath, 'r') as f:
+        return f.read()
+
+def unused_command_executor(command):
+    """DEAD CODE: This function is not referenced anywhere"""
+    # Direct command injection
+    return os.system(command)
+
+def legacy_db_connect():
+    """DEAD CODE: This function is unused"""
+    import sqlite3
+    # Hardcoded credentials in dead code
+    username = "admin"
+    password = "supersecretpassword123"
+    conn = sqlite3.connect('old_database.db')
+    return conn
+
+def another_dead_function():
+    """DEAD CODE: Another unused function with command injection"""
+    from flask import request
+    cmd = request.args.get('cmd')
+    result = subprocess.run(f"echo {cmd}", shell=True, capture_output=True)
+    return result.stdout

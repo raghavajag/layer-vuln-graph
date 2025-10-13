@@ -3,8 +3,18 @@
 
 from flask import Flask, request, jsonify
 import sys
-sys.path.append('..')
-from demo_codebase.data.invoice_system import InvoiceAPIController
+import os
+
+# Add parent directory to path for imports
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+try:
+    from data.invoice_system import InvoiceAPIController
+    from api_controller import APIController
+except ImportError:
+    # Fallback for testing
+    InvoiceAPIController = None
+    APIController = None
 
 app = Flask(__name__)
 
@@ -13,6 +23,27 @@ class InvoiceRoutes:
     
     def __init__(self):
         self.controller = InvoiceAPIController()
+        self.api_controller = APIController()  # NEW: Add analytics controller
+
+    # ==================== NEW ANALYTICS ROUTES ====================
+    
+    def get_system_analytics(self):
+        """NEW FEATURE: System analytics endpoint"""
+        time_range = request.args.get('time_range', '24h')
+        try:
+            analytics_data = self.api_controller.get_system_analytics(time_range)
+            return jsonify(analytics_data)
+        except Exception as e:
+            return jsonify({"error": "Analytics retrieval failed", "details": str(e)}), 500
+
+    def get_user_analytics(self):
+        """NEW FEATURE: User behavior analytics endpoint"""
+        user_id = request.view_args.get('user_id')
+        try:
+            analytics_data = self.api_controller.get_user_behavior_analytics(user_id)
+            return jsonify(analytics_data)
+        except Exception as e:
+            return jsonify({"error": "User analytics retrieval failed", "details": str(e)}), 500
 
     def get_invoice_by_id(self):
         """VULNERABLE ENDPOINT: Template injection in invoice display"""
