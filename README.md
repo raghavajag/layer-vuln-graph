@@ -171,10 +171,137 @@ When these changes are merged, the PR review system should detect:
 
 The codebase contains intentional vulnerability patterns for testing:
 
-- **Template Injection**: In logging utilities
-- **SQL Injection**: In repository layer
-- **Path Traversal**: In file operations
-- **Input Validation**: Various bypass attempts
+### Critical Vulnerabilities (Must Fix)
+
+#### SQL Injection
+- **Location**: `repos/invoice_repo.py`
+  - `repo_get_invoice_by_id()` - Direct SQL injection, no protection
+  - `search_invoices_vulnerable()` - Public search with SQL injection
+  - `get_user_by_username_sqli()` - Exposes sensitive data including password hashes
+- **Location**: `db_init.py`
+  - `get_user_data_vulnerable()` - Direct string concatenation
+  - `search_users_by_role()` - Multiple parameter injection
+  - `execute_custom_query()` - Table name injection
+- **Impact**: Data breach, unauthorized access, data manipulation
+
+#### Command Injection
+- **Location**: `services/extended_services.py`
+  - `ping_host()` - Direct command execution with user input
+  - `execute_diagnostic()` - No validation or sanitization
+  - `run_batch_script()` - Command injection via script parameters
+- **Location**: `routes/vulnerability_routes.py`
+  - `/ping` endpoint - Direct subprocess call
+  - `/direct_command` endpoint - Arbitrary command execution
+- **Location**: `app.py`
+  - `/ping` route - Command injection through subprocess
+- **Impact**: Remote code execution, system compromise
+
+#### Template Injection & XSS
+- **Location**: `routes/vulnerability_routes.py`
+  - `/dashboard` - Template injection in welcome message
+  - `/search` - XSS in search results
+  - `/comment` - XSS in comment display
+  - `/notification` - XSS in notification system
+- **Location**: `app.py`
+  - `/dashboard` - Template injection
+  - `/comment` - XSS vulnerability
+- **Impact**: Session hijacking, credential theft, defacement
+
+#### Path Traversal & File Operations
+- **Location**: `services/extended_services.py`
+  - `upload_and_save_file()` - Path traversal + potential RCE
+  - `get_file_by_path()` - Direct path traversal, no validation
+- **Location**: `routes/vulnerability_routes.py`
+  - `/upload_and_execute` - Critical file upload vulnerability
+- **Impact**: Arbitrary file read/write, potential RCE
+
+### Good to Fix Vulnerabilities (Lower Priority)
+
+#### SQL Injection with Partial Protection
+- **Location**: `repos/invoice_repo.py`
+  - `authenticate_user()` - Partial sanitization, still vulnerable
+  - `search_logs_sqli()` - Lower business impact (logging system)
+  - `custom_sanitization_sqli()` - Incomplete sanitization
+- **Location**: `db_init.py`
+  - `update_user_role_vulnerable()` - Partial sanitization
+
+#### Weak Validation & Cryptography
+- **Location**: `services/extended_services.py`
+  - `hash_password()` - Base64 instead of proper hashing
+  - `validate_email()` - Overly simplistic regex
+  - `generate_session_token()` - Predictable token generation
+- **Impact**: Account compromise, weak authentication
+
+#### File Operations with Weak Validation
+- **Location**: `services/extended_services.py`
+  - `read_user_file()` - Weak path traversal protection
+  - `read_internal_file()` - Lower impact (internal network)
+- **Impact**: Limited file access
+
+#### XSS with Mitigating Factors
+- **Location**: `routes/vulnerability_routes.py`
+  - `/user_profile` - Requires authentication
+  - `/rate_limited_endpoint` - Protected by WAF/rate limiting
+- **Impact**: Limited due to protections
+
+### Protected Patterns (False Positives)
+
+These should NOT be flagged as vulnerabilities:
+
+#### Properly Sanitized SQL
+- `search_with_parameterized_query()` - Parameterized queries
+- `get_invoice_secure()` - Properly parameterized
+- `get_user_data_secure()` - Secure implementation
+- `update_user_role_secure()` - Both parameters properly handled
+
+#### Properly Escaped XSS
+- `/render_sanitized` - HTML escaping with `html.escape()`
+- `safe_file_read()` - Proper file path validation
+
+#### Protected Command Execution
+- `admin_execute_command()` - Protected by @staff_member_required decorator
+- `/admin_debug` - Admin-only access
+
+#### Business Logic Protection
+- `safe_file_read()` - Whitelist of allowed extensions
+- `/file_access_sanitized` - Multiple validation layers
+
+### Dead Code Vulnerabilities (Should Not Be Flagged)
+
+These functions are never called and should be classified as dead code:
+
+- **Location**: `repos/invoice_repo.py`
+  - `unused_sql_injection_function()`
+  - `legacy_db_query_vulnerable()`
+  - `deprecated_admin_query()` - Also contains hardcoded credentials
+  
+- **Location**: `services/extended_services.py`
+  - `legacy_load_user_preferences()` - Unsafe deserialization
+  - `deprecated_get_file()` - Path traversal
+  - `unused_command_executor()` - Command injection
+  - `legacy_db_connect()` - Hardcoded credentials
+  - `another_dead_function()` - Command injection
+
+- **Location**: `db_init.py`
+  - `legacy_raw_query_executor()` - Raw SQL execution
+  - `unused_admin_query()` - Hardcoded credentials
+  - `deprecated_batch_delete()` - Unsafe batch operation
+
+- **Location**: `app.py`
+  - `dead_controller()`
+  - `unused_vulnerable_function()`
+  - `legacy_file_reader()`
+
+### Vulnerability Categories Summary
+
+| Category | Critical | Good to Fix | Protected | Dead Code |
+|----------|----------|-------------|-----------|-----------|
+| SQL Injection | 5 | 4 | 4 | 4 |
+| Command Injection | 4 | 1 | 1 | 2 |
+| XSS/Template Injection | 5 | 2 | 2 | 0 |
+| Path Traversal | 2 | 2 | 2 | 1 |
+| Weak Crypto/Auth | 0 | 4 | 0 | 2 |
+| **Total** | **16** | **13** | **9** | **9** |
 
 ⚠️ **Note**: This is a demo application with intentional vulnerabilities for testing purposes only.
 
@@ -195,6 +322,19 @@ This codebase is designed for testing PR review systems. When making changes:
 4. Test analytics and validation features
 
 ## 📝 Changelog
+
+### v1.3.0 (2025-10-13)
+- **MAJOR UPDATE**: Comprehensive vulnerability testing suite added
+- Added 16 critical vulnerabilities across SQL injection, command injection, XSS, and path traversal
+- Added 13 "good to fix" vulnerabilities with partial protections
+- Added 9 protected patterns to test false positive detection
+- Added 9 dead code functions with vulnerabilities
+- Enhanced `repos/invoice_repo.py` with multiple SQL injection patterns
+- Enhanced `services/extended_services.py` with command injection and file operation vulnerabilities
+- Enhanced `routes/vulnerability_routes.py` with XSS and template injection patterns
+- Added `db_init.py` for database operations with various vulnerability patterns
+- Updated comprehensive vulnerability documentation
+- Added vulnerability categorization and severity classification
 
 ### v1.2.0 (2025-10-03)
 - Added comprehensive analytics endpoints
