@@ -314,3 +314,119 @@ class APIController:
             'safe_script_path': script_path if script_path in allowed_scripts else allowed_scripts[0],
             'safe_mode': mode if mode in allowed_modes else 'safe'
         }
+    
+    # ==================== NEW ANALYTICS ENDPOINTS ====================
+    
+    def get_system_analytics(self, time_range: str = "24h") -> Dict[str, Any]:
+        """
+        NEW FEATURE: System analytics endpoint for monitoring
+        Returns system metrics and usage statistics
+        """
+        import datetime
+        from collections import defaultdict
+        
+        # Simulate analytics data collection
+        metrics = {
+            'requests_total': self._get_request_count(time_range),
+            'error_rate': self._calculate_error_rate(time_range),
+            'response_times': self._get_response_time_stats(time_range),
+            'top_endpoints': self._get_top_endpoints(time_range),
+            'timestamp': datetime.datetime.now().isoformat()
+        }
+        
+        # Log analytics access for audit trail
+        self.central_logger.info(f"Analytics accessed for range: {time_range}")
+        
+        return {
+            'status': 'success',
+            'data': metrics,
+            'time_range': time_range
+        }
+    
+    def get_user_behavior_analytics(self, user_id: Optional[str] = None) -> Dict[str, Any]:
+        """
+        NEW FEATURE: User behavior analytics
+        Analyzes user interaction patterns and potential security anomalies
+        """
+        if user_id and not self._validate_user_id(user_id):
+            return {"error": "Invalid user ID format"}
+            
+        behavior_data = {
+            'login_patterns': self._analyze_login_patterns(user_id),
+            'api_usage': self._analyze_api_usage(user_id),
+            'security_events': self._get_security_events(user_id),
+            'risk_score': self._calculate_risk_score(user_id)
+        }
+        
+        return {
+            'status': 'success',
+            'user_id': user_id or 'all_users',
+            'analytics': behavior_data
+        }
+    
+    # ==================== ANALYTICS HELPER METHODS ====================
+    
+    def _get_request_count(self, time_range: str) -> int:
+        """Helper method to get request count for given time range"""
+        # Simulate request counting logic
+        base_count = 1000
+        multiplier = {'1h': 0.1, '24h': 1.0, '7d': 7.0, '30d': 30.0}
+        return int(base_count * multiplier.get(time_range, 1.0))
+    
+    def _calculate_error_rate(self, time_range: str) -> float:
+        """Calculate error rate percentage"""
+        # Simulate error rate calculation
+        import random
+        return round(random.uniform(0.5, 5.0), 2)
+    
+    def _get_response_time_stats(self, time_range: str) -> Dict[str, float]:
+        """Get response time statistics"""
+        import random
+        return {
+            'avg': round(random.uniform(100, 500), 2),
+            'p95': round(random.uniform(500, 1000), 2),
+            'p99': round(random.uniform(1000, 2000), 2)
+        }
+    
+    def _get_top_endpoints(self, time_range: str) -> List[Dict[str, Any]]:
+        """Get most frequently accessed endpoints"""
+        return [
+            {'endpoint': '/api/invoice', 'requests': 150, 'avg_response_time': 245.2},
+            {'endpoint': '/api/user/profile', 'requests': 120, 'avg_response_time': 180.5},
+            {'endpoint': '/api/analytics', 'requests': 85, 'avg_response_time': 320.1}
+        ]
+    
+    def _validate_user_id(self, user_id: str) -> bool:
+        """Validate user ID format"""
+        return user_id.isdigit() and len(user_id) > 0
+    
+    def _analyze_login_patterns(self, user_id: Optional[str]) -> Dict[str, Any]:
+        """Analyze user login patterns"""
+        return {
+            'frequent_login_times': ['09:00-10:00', '14:00-15:00'],
+            'login_frequency': 'normal',
+            'suspicious_locations': []
+        }
+    
+    def _analyze_api_usage(self, user_id: Optional[str]) -> Dict[str, Any]:
+        """Analyze API usage patterns"""
+        return {
+            'most_used_endpoints': ['/api/invoice', '/api/profile'],
+            'usage_pattern': 'regular',
+            'rate_limit_hits': 0
+        }
+    
+    def _get_security_events(self, user_id: Optional[str]) -> List[Dict[str, Any]]:
+        """Get security-related events"""
+        return [
+            {'event': 'failed_login', 'count': 2, 'last_occurrence': '2025-10-02T10:30:00Z'},
+            {'event': 'suspicious_ip', 'count': 0, 'last_occurrence': None}
+        ]
+    
+    def _calculate_risk_score(self, user_id: Optional[str]) -> Dict[str, Any]:
+        """Calculate user risk score"""
+        return {
+            'score': 2.5,
+            'level': 'low',
+            'factors': ['normal_login_pattern', 'regular_api_usage']
+        }

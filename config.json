@@ -1,0 +1,54 @@
+{
+  "name": "demo-codebase",
+  "version": "1.2.0",
+  "description": "Enhanced demo codebase for testing PR review system with analytics and improved validation",
+  "main": "main.py",
+  "scripts": {
+    "start": "python main.py",
+    "test": "python -m pytest tests/",
+    "lint": "flake8 .",
+    "format": "black .",
+    "analytics": "python -c \"from api_controller import APIController; c = APIController(); print(c.get_system_analytics())\"",
+    "validate": "python -c \"from services.invoice_service import _validate_invoice_data; print('Validation functions loaded successfully')\""
+  },
+  "dependencies": {
+    "Flask": "^2.3.0",
+    "python-dateutil": "^2.8.2",
+    "requests": "^2.31.0",
+    "Werkzeug": "^2.3.0"
+  },
+  "devDependencies": {
+    "pytest": "^7.4.0",
+    "flake8": "^6.0.0",
+    "black": "^23.7.0",
+    "pytest-cov": "^4.1.0"
+  },
+  "features": {
+    "analytics_endpoints": {
+      "enabled": true,
+      "cache_duration": "1h",
+      "rate_limit": 100
+    },
+    "enhanced_validation": {
+      "enabled": true,
+      "strict_mode": false,
+      "log_validation_errors": true
+    },
+    "data_formatting": {
+      "enabled": true,
+      "default_currency": "USD",
+      "date_format": "iso"
+    }
+  },
+  "security": {
+    "enable_rate_limiting": true,
+    "max_requests_per_minute": 60,
+    "enable_audit_logging": true,
+    "sanitize_user_inputs": true
+  },
+  "monitoring": {
+    "log_level": "INFO",
+    "metrics_collection": true,
+    "health_check_interval": "30s"
+  }
+}
