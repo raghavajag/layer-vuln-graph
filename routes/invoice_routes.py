@@ -57,3 +57,22 @@ def api_get_invoice_by_id(id):
 def api_get_user_invoices():
     """SECURE: User can only access their own invoices"""
     return invoice_routes.get_current_user_invoices()
+
+def register():
+    username = request.form.get('username', '')
+    password = request.form.get('password', '')
+    email = request.form.get('email', '')
+
+    if not validate_email(email):
+        return "Invalid email format"
+
+    hashed_password = hash_password(password)
+
+    conn = sqlite3.connect('users.db')
+    c = conn.cursor()
+    c.execute("INSERT INTO users (username, password, role) VALUES (?, ?, ?)",
+              (username, hashed_password, 'user'))
+    conn.commit()
+    conn.close()
+
+
